@@ -1,0 +1,240 @@
+#cloud-config
+cloud_final_modules:
+  - [write-files, always]
+  - [package-update-upgrade-install, always]
+  - [runcmd, always]
+  - [users-groups, always]
+  - [scripts-user, always]
+users:
+  - name: sskalnik
+    groups: [ wheel ]
+    sudo: [ "ALL=(ALL) NOPASSWD:ALL" ]
+    shell: /bin/bash
+    ssh-authorized-keys: 
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCIKOoSSCWzvNAwPUc4TVKdTJsn9tlR2X0kyYt8Nfhn8hMmNJfSwc2+pK/51JavfcyEqTclkay9KuWvHTEROfP2sbm+fAUxapmGwqLKBQ4WXdkLp65jWHJB39MAw59rvCH+Sx5eJ35vXlP+JYtniX0CbeLG1I9Q9h5ObERUGNa2bcJyane5zOGNC3mhzao3CEnIfS7BcrQWUEktBjFAAWEH+Lwz+/KMX1i6rEV0xLDWZtSTkJBt62k6JQWlKJccuO8Ju5c08XQBSShK5jPV0YAugggTT8abVZRs+Aq+hyZ2YqUJnQpWY/Oi0Y6vSrJNN80NmpJKRlmOZyshBPt4dI4X devbox_onica
+repo_update: true
+repo_upgrade: all
+packages:
+  - python3
+  - htop
+  - iotop
+  - git
+  - tmux
+  - gpg2
+  - colordiff
+runcmd:
+# Lock down SSH: non-standard port 666, no root login, no password login, etc.; SSH2 using key-based auth only!
+  - [ sh, -c, echo, '# Added by cloud-init user-data:', '>>', '/etc/ssh/sshd_config' ]
+  - grep -q '^Port' /etc/ssh/sshd_config && sed -i 's/^Port.*/Port 666/' /etc/ssh/sshd_config || echo 'Port 666' >> /etc/ssh/sshd_config
+  - grep -q '^UsePAM' /etc/ssh/sshd_config && sed -i 's/^UsePAM.*/UsePAM yes/' /etc/ssh/sshd_config || echo 'UsePAM yes' >> /etc/ssh/sshd_config
+  - grep -q '^Protocol' /etc/ssh/sshd_config && sed -i 's/^Protocol.*/Protocol 2/' /etc/ssh/sshd_config || echo 'Protocol 2' >> /etc/ssh/sshd_config
+  - grep -q '^PrintMotd' /etc/ssh/sshd_config && sed -i 's/^PrintMotd.*/PrintMotd no/' /etc/ssh/sshd_config || echo 'PrintMotd no' >> /etc/ssh/sshd_config
+  - grep -q '^PermitRootLogin' /etc/ssh/sshd_config && sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config
+  - grep -q '^AllowUsers' /etc/ssh/sshd_config && sed -i 's/^AllowUsers.*/AllowUsers sskalnik ec2-user/' /etc/ssh/sshd_config || echo 'AllowUsers sskalnik ec2-user' >> /etc/ssh/sshd_config
+  - grep -q '^PasswordAuthentication' /etc/ssh/sshd_config && sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config || echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config
+  - service sshd restart
+# Install the best vim color scheme
+  - wget https://raw.githubusercontent.com/vim-scripts/vibrantink/master/colors/vibrantink.vim -O /usr/share/vim/vimfiles/colors/vibrantink.vim
+# Install requirements for RVM
+  - yum install -y gcc openssl-devel libyaml-devel libffi-devel readline-devel zlib-devel gdbm-devel ncurses-devel ruby-devel gcc-c++ jq patch autoconf automake bison libtool sqlite-devel
+  - curl -sSL https://rvm.io/mpapis.asc | gpg2 --import -
+  - curl -sSL https://rvm.io/pkuczynski.asc | gpg2 --import -
+# This can take a while to install RVM and a stable Ruby
+  - su sskalnik -c '\curl -sSL https://get.rvm.io | bash -s stable --ruby && echo "source $HOME/.rvm/scripts/rvm" >> ~/.bash_profile'
+# This can take a long time to compile the latest Ruby
+# - su sskalnik -c 'rvm install ruby-head'
+# Install pip3 to user directory
+  - su sskalnik -c 'python3 -m pip install --upgrade pip --user'
+# https://www.activestate.com/blog/why-pipenv-venv/
+  - su sskalnik -c 'python3 -m pip install --upgrade pipenv --user'
+# Install EPEL
+  - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+# Install EPEL package 'sl'
+  - yum install -y sl
+write_files:
+  - path: /home/sskalnik/.vimrc
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      colorscheme vibrantink
+      set t_Co=256
+      cmap w!! %!sudo tee > /dev/null %
+      cmap p!! :set paste
+      cmap np!! :set nopaste
+      set autoindent
+      set cindent
+      set tabstop=2
+      set shiftwidth=2
+      set expandtab
+      set foldmethod=indent
+      set foldlevel=99
+      syntax on
+      filetype on
+      filetype plugin indent on
+      map <c-j> <c-w>j
+      map <c-k> <c-w>k
+      map <c-l> <c-w>l
+      map <c-h> <c-w>h
+      set mouse=
+      set ttymouse=
+  - path: /home/sskalnik/.gitconfig
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      [user]
+        name = Shelby Skalnik
+        email = sskalnik@onica.com
+      [core]
+        autocrlf = true
+        safecrlf = false
+        editor = vim
+        whitespace = cr-at-eol
+      [alias]
+        co = checkout
+        ci = commit
+        st = status
+        br = branch
+        hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
+        type = cat-file -t
+        dump = cat-file -p
+        tree = log --oneline --decorate --all --graph --color
+        dog = log --color --pretty=format:"%h%x09%an%x09%ad%x09%s"
+        d = difftool
+      [color]
+        diff = auto
+        status = auto
+        branch = auto
+        interactive = auto
+        ui = true
+        pager = true
+      [rerere]
+        enabled = 1
+      [diff]
+        tool = vimdiff
+      [difftool]
+        prompt = false
+  - path: /home/sskalnik/.bash_aliases
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      alias rm='rm -i'
+      alias got='git checkout'
+      alias gitm='git commit -m'
+      alias gita='git commit -add .'
+      alias gitam='git add -A && git commit -m'
+      alias gats='git status'
+      alias gog='git log'
+      alias gcob='git checkout -b'
+      alias gitt='git log --oneline --decorate --all --graph --color'
+      alias gg='git log --oneline --decorate --all --graph --color --simplify-by-decoration'
+      alias lc='ls -Chal'
+      alias lh='ls -hl'
+      alias lt='ls -halt'
+      alias lr='ls -haltr'
+      alias glist='git stash list'
+      alias getch='git fetch'
+      alias gall='git fetch --all'
+      alias lc='ls -Chal'
+      alias lh='ls -hl'
+      alias lt='ls -halt'
+      alias lr='ls -haltr'
+      alias pyclean='find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf'
+      alias gag='git dag | head'
+      alias emacs='vim'
+      alias gee='git tree | head'
+      alias geee='git tree | head -n 40'
+      alias gg='gats && gee'
+      alias ggg='gats && geee'
+      alias gggg='git log --oneline --decorate --all --graph --color --simplify-by-decoration'
+      alias tputcols=$'printf \'%*s\n\' "${COLUMNS:-$(tput cols)}" \'\' | tr \' \' -'
+      alias what='gg'
+      alias branches='git branch -vv'
+      alias gainline='git co mainline && git pull && git co -'
+      alias mygit='git config user.name "Shelby Skalnik" && git config user.email "sskalnik@sskalnik.com"'
+      alias yeet='yum remove'
+      alias yoink='yum install'
+      alias yup='yum check-update && yum update'
+      alias yep='yum --enablerepo=epel install'
+      alias mount='mount |column -t'
+      alias pscpu='ps auxf | sort -nr -k 3'
+      alias wtf='ps auxf | sort -nr -k 3 | head -10 && ps auxf | sort -nr -k 4 | head -10'
+      alias diff='colordiff'
+      alias lsacl='sudo /sbin/iptables -L -n -v --line-numbers'
+      alias aclin='sudo /sbin/iptables -L INPUT -n -v --line-numbers'
+      alias aclout='sudo /sbin/iptables -L OUTPUT -n -v --line-numbers'
+      alias aclfwd='sudo /sbin/iptables -L FORWARD -n -v --line-numbers'
+  - path: /home/sskalnik/.bashrc
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      # If not running interactively, don't do anything
+      case $- in
+          *i*) ;;
+            *) return;;
+      esac
+
+      # don't put duplicate lines or lines starting with space in the history.
+      # See bash(1) for more options
+      HISTCONTROL=ignoreboth
+
+      # append to the history file, don't overwrite it
+      shopt -s histappend
+
+      # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
+      HISTSIZE=1000000
+      HISTFILESIZE=2000000
+
+      # check the window size after each command and, if necessary,
+      # update the values of LINES and COLUMNS.
+      shopt -s checkwinsize
+
+      force_color_prompt=yes
+
+      # [sskalnik@ip-172-31-39-86:/tmp]$
+      export PS1="\[\e[32m\][\[\e[m\]\[\e[36m\]\u\[\e[m\]\[\e[33m\]@\[\e[m\]\[\e[35m\]\h\[\e[m\]:\[\e[1;34m\]\w\[\e[m\]\[\e[32m\]]\[\e[m\]\[\e[32m\]\\$\[\e[m\] "
+
+      # enable color support of ls and also add handy aliases
+      if [ -x /usr/bin/dircolors ]; then
+          test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+          alias ls='ls --color=auto'
+          alias dir='dir --color=auto'
+          alias vdir='vdir --color=auto'
+
+          alias grep='grep --color=auto'
+          alias fgrep='fgrep --color=auto'
+          alias egrep='egrep --color=auto'
+      fi
+
+      # Alias definitions.
+      if [ -f ~/.bash_aliases ]; then
+          . ~/.bash_aliases
+      fi
+
+      # enable programmable completion features (you don't need to enable
+      # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
+      # sources /etc/bash.bashrc).
+      if ! shopt -oq posix; then
+        if [ -f /usr/share/bash-completion/bash_completion ]; then
+          . /usr/share/bash-completion/bash_completion
+        elif [ -f /etc/bash_completion ]; then
+          . /etc/bash_completion
+        fi
+      fi
+
+      # vim with colors
+      export TERM="xterm-256color"
+      export VISUAL="vim"
+      export EDITOR="vim"
+
+      # retain history across terminal sessions
+      shopt -s histverify
+      shopt -s histreedit
+      export HISTCONTROL=ignoredups:erasedups
+      export PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
+
+      export PYTHONSTARTUP="~/.pythonrc"
+
+      # Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
+      # Also add user-scoped NPM and binaries for AWS and Bitbucket, etc.
+      export PATH="$HOME/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
+
