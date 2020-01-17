@@ -32,6 +32,8 @@ runcmd:
   - grep -q '^PermitRootLogin' /etc/ssh/sshd_config && sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config
   - grep -q '^AllowUsers' /etc/ssh/sshd_config && sed -i 's/^AllowUsers.*/AllowUsers sskalnik ec2-user/' /etc/ssh/sshd_config || echo 'AllowUsers sskalnik ec2-user' >> /etc/ssh/sshd_config
   - grep -q '^PasswordAuthentication' /etc/ssh/sshd_config && sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config || echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config
+# Set proper ssh file and folder permissions
+  - su sskalnik -c 'chmod 600 ~/.ssh/authorized_keys'
   - service sshd restart
 # Install the best vim color scheme
   - wget https://raw.githubusercontent.com/vim-scripts/vibrantink/master/colors/vibrantink.vim -O /usr/share/vim/vimfiles/colors/vibrantink.vim
@@ -52,6 +54,25 @@ runcmd:
 # Install EPEL package 'sl'
   - yum install -y sl
 write_files:
+  - path: /home/sskalnik/.ssh/config
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      Host github.com
+       Hostname github.com
+       IdentityFile ~/.ssh/onica_bitbucket
+       User git
+       Port 22
+
+      Host bitbucket.org
+       Hostname bitbucket.org
+       IdentityFile ~/.ssh/onica_bitbucket
+       User git
+       Port 22
+
+      Host *
+       ForwardAgent no
+       IdentitiesOnly yes
   - path: /home/sskalnik/.vimrc
     owner: sskalnik:sskalnik
     permissions: 0600
