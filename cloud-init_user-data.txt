@@ -53,6 +53,10 @@ runcmd:
   - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 # Install EPEL package 'sl'
   - yum install -y sl
+# Install Terraform and download updater script
+  - wget https://raw.githubusercontent.com/sskalnik/tf-updater/master/get-latest-terraform.sh -O /home/sskalnik/bin/get-latest-terraform.sh
+  - chmod +x /home/sskalnik/bin/get-latest-terraform.sh
+  - /home/sskalnik/bin/get-latest-terraform.sh
 write_files:
   - path: /home/sskalnik/.ssh/config
     owner: sskalnik:sskalnik
