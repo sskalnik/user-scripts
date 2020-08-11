@@ -12,16 +12,39 @@ users:
     shell: /bin/bash
     ssh-authorized-keys: 
     - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCIKOoSSCWzvNAwPUc4TVKdTJsn9tlR2X0kyYt8Nfhn8hMmNJfSwc2+pK/51JavfcyEqTclkay9KuWvHTEROfP2sbm+fAUxapmGwqLKBQ4WXdkLp65jWHJB39MAw59rvCH+Sx5eJ35vXlP+JYtniX0CbeLG1I9Q9h5ObERUGNa2bcJyane5zOGNC3mhzao3CEnIfS7BcrQWUEktBjFAAWEH+Lwz+/KMX1i6rEV0xLDWZtSTkJBt62k6JQWlKJccuO8Ju5c08XQBSShK5jPV0YAugggTT8abVZRs+Aq+hyZ2YqUJnQpWY/Oi0Y6vSrJNN80NmpJKRlmOZyshBPt4dI4X devbox_onica
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCJ9UcEAomb1tQqV6Xz+pcRvRxpsM/BTu47aWJOSD3P6gqGe0oHjolq2zGI6z1+hOe1N1YY/9Whd40JghsFDYIcZiP0F84RXH2jlC9LNCbXrxwhPtSEsWx8zLiGCd6egQbFnSnaNct8YHiRAKYoSreSIY/t1jzElsvqe1UKPnpsmVT9R4mhE1ljic87qqaZZPo3o/p8O1X3WMBwnUcGNqKqpEBIm+IUFZcQKh3N94mM/WBH34/m3CdlTcu5/xe1lSetVi9IpDQ6+n5OYRbH4LczubtoxSTvETL89VigS3aqx7sDPsIO7xh+C9bMMrvZee82ASdCMCZXYvJlxdwIJcI9 devbox
 repo_update: true
 repo_upgrade: all
 packages:
-  - python3
+  - python3 # This is the system python3. Install the latest Python from source later, as an "altinstall", not system default. 
   - htop
   - iotop
   - git
   - tmux
   - gpg2
   - colordiff
+  - fail2ban # block "background noise" scanners and script kiddies
+  - clamd # anti-virus
+  - dos2unix
+  - jq
+  - wget
+  - curl
+  - unzip
+# Python latest 3.8.5 install from source tarball
+  - gcc
+  - bzip2-devel
+  - libffi-devel
+  - openssl-devel
+# Onica SSO is designed for OS X and assumes a GUI; need to install some keyring/wallet packages that assume X11
+# Do not install a full GUI! Just install these packages to get the keyring back-end installed and running
+  - swig
+  - python3-devel
+  - pcsc-lite-devel
+  - dbus-python
+  - dbus-x11
+  - gnome-keyring
+  - libsecret
+  - libjpeg-turbo-devel # Onica-SSO via Pillow https://pillow.readthedocs.io/en/latest/installation.html
 runcmd:
 # Lock down SSH: non-standard port 666, no root login, no password login, etc.; SSH2 using key-based auth only!
   - [ sh, -c, echo, '# Added by cloud-init user-data:', '>>', '/etc/ssh/sshd_config' ]
@@ -32,51 +55,103 @@ runcmd:
   - grep -q '^PermitRootLogin' /etc/ssh/sshd_config && sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config
   - grep -q '^AllowUsers' /etc/ssh/sshd_config && sed -i 's/^AllowUsers.*/AllowUsers sskalnik ec2-user/' /etc/ssh/sshd_config || echo 'AllowUsers sskalnik ec2-user' >> /etc/ssh/sshd_config
   - grep -q '^PasswordAuthentication' /etc/ssh/sshd_config && sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config || echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config
-# Set proper ssh file and folder permissions
-  - su sskalnik -c 'chmod 600 ~/.ssh/authorized_keys'
   - service sshd restart
+# Set permissions for SSH
+  - chmod 700 /home/sskalnik/.ssh
+  - chmod 600 /home/sskalnik/.ssh/authorized_keys
+# Take control of $HOME
+  - chown sskalnik:sskalnik /home/sskalnik/ -R
+# Python 3.8.5
+# Compiling from source can take a long time on a small instance!
+  - (cd /opt && wget https://www.python.org/ftp/python/3.8.5/Python-3.8.5.tgz && tar xzf Python-3.8.5.tgz && cd Python-3.8.5 && ./configure --enable-optimizations && make altinstall && rm -f /opt/Python-3.8.5.tgz)
 # Install the best vim color scheme
   - wget https://raw.githubusercontent.com/vim-scripts/vibrantink/master/colors/vibrantink.vim -O /usr/share/vim/vimfiles/colors/vibrantink.vim
+# Terraform syntax for vim
+  - git clone https://github.com/hashivim/vim-terraform.git /home/sskalnik/.vim/pack/plugins/start/vim-terraform
+  - find /home/sskalnik/.vim/pack/plugins/start/vim-terraform/ -type f -print0 | xargs -0 dos2unix
 # Install requirements for RVM
-  - yum install -y gcc openssl-devel libyaml-devel libffi-devel readline-devel zlib-devel gdbm-devel ncurses-devel ruby-devel gcc-c++ jq patch autoconf automake bison libtool sqlite-devel
-  - curl -sSL https://rvm.io/mpapis.asc | gpg2 --import -
-  - curl -sSL https://rvm.io/pkuczynski.asc | gpg2 --import -
+  - yum install -y gcc openssl-devel libyaml-devel libffi-devel readline-devel zlib-devel gdbm-devel ncurses-devel ruby-devel gcc-c++ jq patch autoconf automake bison libtool patch sqlite-devel
+  - su sskalnik -c 'curl -sSL https://rvm.io/mpapis.asc | gpg2 --import -'
+  - su sskalnik -c 'curl -sSL https://rvm.io/pkuczynski.asc | gpg2 --import -'
 # This can take a while to install RVM and a stable Ruby
   - su sskalnik -c '\curl -sSL https://get.rvm.io | bash -s stable --ruby && echo "source $HOME/.rvm/scripts/rvm" >> ~/.bash_profile'
-# This can take a long time to compile the latest Ruby
+# This can take a long time to compile the latest Ruby on a small instance!
 # - su sskalnik -c 'rvm install ruby-head'
 # Install pip3 to user directory
-  - su sskalnik -c 'python3 -m pip install --upgrade pip --user'
+  - su sskalnik -c 'python3.8 -m pip install --upgrade pip --user'
 # https://www.activestate.com/blog/why-pipenv-venv/
-  - su sskalnik -c 'python3 -m pip install --upgrade pipenv --user'
+  - su sskalnik -c 'python3.8 -m pip install --upgrade pipenv --user'
 # Install EPEL
   - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 # Install EPEL package 'sl'
   - yum install -y sl
 # Install Terraform and download updater script
+  - mkdir /home/sskalnik/bin
   - wget https://raw.githubusercontent.com/sskalnik/tf-updater/master/get-latest-terraform.sh -O /home/sskalnik/bin/get-latest-terraform.sh
   - chmod +x /home/sskalnik/bin/get-latest-terraform.sh
   - /home/sskalnik/bin/get-latest-terraform.sh
+#
+  - curl -sL "$(curl -Ls https://api.github.com/repos/liamg/tfsec/releases/latest | grep -o -E "https://.+?linux-amd64")" -o /usr/local/bin/tfsec
+  - chmod +x /usr/local/bin/tfsec
+#
+  - curl -sL "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" -o tflint.zip
+  - unzip tflint.zip && rm tflint.zip && mv tflint /usr/local/bin/tflint
+  - chmod +x /usr/local/bin/tflint
+# Set up Onica SSO keyring back-end dbus-python connection to gnome-keyring
+# https://unix.stackexchange.com/questions/473528/how-do-you-enable-the-secret-tool-command-backed-by-gnome-keyring-libsecret-an
+  - mkdir -p ~/.local/share/keyrings
+  - mkdir -p ~/.cache
+  - dbus-launch --sh-syntax
+  - printf '\n' | gnome-keyring-daemon --unlock # Use an actual password here!
+  - /usr/bin/gnome-keyring-daemon --start
+# Install Onica SSO via pip3
+  - su sskalnik -c 'python3.8 -m pip install --upgrade wget https://s3.amazonaws.com/sturdy-sso-client/onica_sso-$(curl https://s3.amazonaws.com/sturdy-sso-client/stable.version)-py2.py3-none-any.whl#egg=onica-sso --user'
 write_files:
   - path: /home/sskalnik/.ssh/config
     owner: sskalnik:sskalnik
     permissions: 0600
     content: |
       Host github.com
-       Hostname github.com
-       IdentityFile ~/.ssh/onica_bitbucket
-       User git
-       Port 22
+        Hostname github.com
+        IdentityFile ~/.ssh/onica_bitbucket
+        User git
+        IdentitiesOnly yes
+        Port 22
 
       Host bitbucket.org
-       Hostname bitbucket.org
-       IdentityFile ~/.ssh/onica_bitbucket
-       User git
-       Port 22
+        Hostname bitbucket.org
+        IdentityFile ~/.ssh/onica_bitbucket
+        User git
+        IdentitiesOnly yes
+        Port 22
+
+      Host visualstudio.com
+        IdentityFile ~/.ssh/onica_bitbucket
+        IdentitiesOnly yes
+
+      Host ssh.dev.azure.com
+        IdentityFile ~/.ssh/onica_bitbucket
+        IdentitiesOnly yes
 
       Host *
-       ForwardAgent no
-       IdentitiesOnly yes
+        ForwardAgent no
+        IdentitiesOnly yes
+  - path: /home/sskalnik/.ssh/rc
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      #!/bin/bash
+      if [ -S "$SSH_AUTH_SOCK" ]; then
+        ln -sf $SSH_AUTH_SOCK ~/.ssh/ssh_auth_sock
+      fi
+  - path: /home/sskalnik/.tmux.conf
+    owner: sskalnik:sskalnik
+    permissions: 0600
+    content: |
+      bind j resize-pane -D 10
+      bind k resize-pane -U 10
+      bind l resize-pane -L 10
+      bind h resize-pane -R 10
   - path: /home/sskalnik/.vimrc
     owner: sskalnik:sskalnik
     permissions: 0600
@@ -102,6 +177,8 @@ write_files:
       map <c-h> <c-w>h
       set mouse=
       set ttymouse=
+      "This unsets the "last search pattern" register by hitting return
+      nnoremap <silent> <CR> :nohlsearch <CR>
   - path: /home/sskalnik/.gitconfig
     owner: sskalnik:sskalnik
     permissions: 0600
@@ -119,10 +196,11 @@ write_files:
         ci = commit
         st = status
         br = branch
-        hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
+        hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short --color --decorate --all
         type = cat-file -t
         dump = cat-file -p
         tree = log --oneline --decorate --all --graph --color
+        pretty = log --pretty=format:'%C(yellow)%h %C(magenta)%ad %C(cyan)%an %C(auto)%d %Creset%s' --date=short --decorate --all --graph --color
         dog = log --color --pretty=format:"%h%x09%an%x09%ad%x09%s"
         d = difftool
       [color]
@@ -138,56 +216,59 @@ write_files:
         tool = vimdiff
       [difftool]
         prompt = false
+      [credential]
+        helper = cache --timeout=600
   - path: /home/sskalnik/.bash_aliases
     owner: sskalnik:sskalnik
     permissions: 0600
     content: |
       alias rm='rm -i'
-      alias got='git checkout'
-      alias gitm='git commit -m'
-      alias gita='git commit -add .'
-      alias gitam='git add -A && git commit -m'
-      alias gats='git status'
-      alias gog='git log'
-      alias gcob='git checkout -b'
-      alias gitt='git log --oneline --decorate --all --graph --color'
-      alias gg='git log --oneline --decorate --all --graph --color --simplify-by-decoration'
-      alias lc='ls -Chal'
-      alias lh='ls -hl'
-      alias lt='ls -halt'
-      alias lr='ls -haltr'
-      alias glist='git stash list'
-      alias getch='git fetch'
-      alias gall='git fetch --all'
-      alias lc='ls -Chal'
-      alias lh='ls -hl'
-      alias lt='ls -halt'
-      alias lr='ls -haltr'
-      alias pyclean='find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf'
-      alias gag='git dag | head'
       alias emacs='vim'
-      alias gee='git tree | head'
-      alias geee='git tree | head -n 40'
-      alias gg='gats && gee'
-      alias ggg='gats && geee'
-      alias gggg='git log --oneline --decorate --all --graph --color --simplify-by-decoration'
+      alias diff='colordiff'
+      alias lc='ls -Chal'
+      alias lh='ls -hl'
+      alias lt='ls -halt'
+      alias lr='ls -haltr'
+      alias mount='mount | column -t'
+      alias pscpu='ps auxf | sort -nr -k 3'
+      alias wtf='ps auxf | sort -nr -k 3 | head -10 && ps auxf | sort -nr -k 4 | head -10'
+      alias pyclean='find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf'
       alias tputcols=$'printf \'%*s\n\' "${COLUMNS:-$(tput cols)}" \'\' | tr \' \' -'
-      alias what='gg'
-      alias branches='git branch -vv'
-      alias gainline='git co mainline && git pull && git co -'
-      alias mygit='git config user.name "Shelby Skalnik" && git config user.email "sskalnik@sskalnik.com"'
+      # Yum
       alias yeet='yum remove'
       alias yoink='yum install'
       alias yup='yum check-update && yum update'
       alias yep='yum --enablerepo=epel install'
-      alias mount='mount |column -t'
-      alias pscpu='ps auxf | sort -nr -k 3'
-      alias wtf='ps auxf | sort -nr -k 3 | head -10 && ps auxf | sort -nr -k 4 | head -10'
-      alias diff='colordiff'
+      # iptables
       alias lsacl='sudo /sbin/iptables -L -n -v --line-numbers'
       alias aclin='sudo /sbin/iptables -L INPUT -n -v --line-numbers'
       alias aclout='sudo /sbin/iptables -L OUTPUT -n -v --line-numbers'
       alias aclfwd='sudo /sbin/iptables -L FORWARD -n -v --line-numbers'
+      # Git status / log
+      alias gats='git status'
+      alias gog='git log'
+      alias gag='git dag | head'
+      alias gitt='git log --oneline --decorate --all --graph --color'
+      alias gg='git pretty | head'
+      alias ggg='git pretty | head -n 40'
+      alias gggg='git pretty'
+      alias what=$'gats && gg && printf \'\n\''
+      # Git commands
+      alias gitm='git commit -m'
+      alias gita='git commit -add .'
+      alias gitam='git add -A && git commit -m'
+      alias gcob='git checkout -b'
+      alias glist='git stash list'
+      alias getch='git fetch'
+      alias gall='git fetch --all'
+      alias geads='git log --oneline --decorate --all --graph --color --simplify-by-decoration'
+      alias branches='git branch -vv'
+      alias gainline='git co mainline && git pull && git co -'
+      alias mygit='git config user.name "Shelby Skalnik" && git config user.email "sskalnik@sskalnik.com"'
+      alias guke='git reset --hard && git clean -df'
+      alias gamend='git add -A && git commit --amend'
+      # Onica / Rackspace
+      alias sso-aws='sso-list --json | jq --unbuffered -r '\''.accounts[] | .externalId + "@" + .key + "@" + .name'\'' | sort -k 2 -t '\''@'\'' | column -t -s'\''@'\'''
   - path: /home/sskalnik/.bashrc
     owner: sskalnik:sskalnik
     permissions: 0600
@@ -262,4 +343,8 @@ write_files:
       # Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
       # Also add user-scoped NPM and binaries for AWS and Bitbucket, etc.
       export PATH="$HOME/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
-
+      
+      # https://bugs.launchpad.net/ubuntu/+source/libsecret/+bug/1420914
+      if test -z "$DBUS_SESSION_BUS_ADDRESS" ; then
+        eval `dbus-launch --sh-syntax`
+      fi
