@@ -30,11 +30,17 @@ packages:
   - wget
   - curl
   - unzip
+  - nc
 # Python latest 3.8.5 install from source tarball
   - gcc
   - bzip2-devel
   - libffi-devel
   - openssl-devel
+# Live kernel patching
+  - binutils
+  - yum-plugin-kernel-livepatch
+# Build the latest tmux from source
+  - libevent-devel
 # Onica SSO is designed for OS X and assumes a GUI; need to install some keyring/wallet packages that assume X11
 # Do not install a full GUI! Just install these packages to get the keyring back-end installed and running
   - swig
@@ -61,9 +67,12 @@ runcmd:
   - chmod 600 /home/sskalnik/.ssh/authorized_keys
 # Take control of $HOME
   - chown sskalnik:sskalnik /home/sskalnik/ -R
-# Python 3.8.5
+# Allow 666 through iptables firewall
+  - iptables -A IN_public_allow -p tcp -m tcp --dport 666 -m conntrack --ctstate NEW -j ACCEPT
+  - iptables -A INPUT -p tcp -m tcp --dport 666 -m conntrack --ctstate NEW -j ACCEPT
+# Python 3.9.6
 # Compiling from source can take a long time on a small instance!
-  - (cd /opt && wget https://www.python.org/ftp/python/3.8.5/Python-3.8.5.tgz && tar xzf Python-3.8.5.tgz && cd Python-3.8.5 && ./configure --enable-optimizations && make altinstall && rm -f /opt/Python-3.8.5.tgz)
+  - (cd /opt && wget https://www.python.org/ftp/python/3.9.6/Python-3.9.6.tgz && tar xzf Python-3.9.6.tgz && cd Python-3.9.6 && ./configure --enable-optimizations && make altinstall && rm -f /opt/Python-3.9.6.tgz)
 # Install the best vim color scheme
   - wget https://raw.githubusercontent.com/vim-scripts/vibrantink/master/colors/vibrantink.vim -O /usr/share/vim/vimfiles/colors/vibrantink.vim
 # Terraform syntax for vim
@@ -90,13 +99,20 @@ runcmd:
   - wget https://raw.githubusercontent.com/sskalnik/tf-updater/master/get-latest-terraform.sh -O /home/sskalnik/bin/get-latest-terraform.sh
   - chmod +x /home/sskalnik/bin/get-latest-terraform.sh
   - /home/sskalnik/bin/get-latest-terraform.sh
-#
+# https://github.com/tfsec/tfsec
   - curl -sL "$(curl -Ls https://api.github.com/repos/liamg/tfsec/releases/latest | grep -o -E "https://.+?linux-amd64")" -o /usr/local/bin/tfsec
   - chmod +x /usr/local/bin/tfsec
-#
+# https://github.com/terraform-linters/tflint
   - curl -sL "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" -o tflint.zip
   - unzip tflint.zip && rm tflint.zip && mv tflint /usr/local/bin/tflint
   - chmod +x /usr/local/bin/tflint
+# Live kernel patching
+  - yum kernel-livepatch enable -y
+  - yum update kpatch-runtime
+  - amazon-linux-extras enable livepatch
+# Build the latest tmux from source, and install tmux-plugins, and finally install the tmux-resurrect plugin
+  - (cd /tmp && git clone https://github.com/tmux/tmux.git && cd ./tmux && dos2unix ./* && sh autogen.sh && ./configure && make && make install)
+  - su sskalnik -c 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm'
 # Set up Onica SSO keyring back-end dbus-python connection to gnome-keyring
 # https://unix.stackexchange.com/questions/473528/how-do-you-enable-the-secret-tool-command-backed-by-gnome-keyring-libsecret-an
   - mkdir -p ~/.local/share/keyrings
@@ -120,6 +136,13 @@ write_files:
 
       Host bitbucket.org
         Hostname bitbucket.org
+        IdentityFile ~/.ssh/onica_bitbucket
+        User git
+        IdentitiesOnly yes
+        Port 22
+        
+      Host gitlab.com
+        Hostname gitlab.com
         IdentityFile ~/.ssh/onica_bitbucket
         User git
         IdentitiesOnly yes
@@ -152,6 +175,10 @@ write_files:
       bind k resize-pane -U 10
       bind l resize-pane -L 10
       bind h resize-pane -R 10
+      # List of plugins
+      set -g @plugin 'tmux-plugins/tpm'
+      set -g @plugin 'tmux-plugins/tmux-sensible'
+      set -g @plugin 'tmux-plugins/tmux-resurrect'
   - path: /home/sskalnik/.vimrc
     owner: sskalnik:sskalnik
     permissions: 0600
@@ -185,7 +212,7 @@ write_files:
     content: |
       [user]
         name = Shelby Skalnik
-        email = sskalnik@onica.com
+        email = sskalnik@rackspace.com
       [core]
         autocrlf = true
         safecrlf = false
