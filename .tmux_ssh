@@ -1,0 +1,25 @@
+# vim: ft=sh
+
+function _check_ssh_agent() {
+  return $( ssh-add -l >& /dev/null )
+}
+
+function set_ssh_agent() {
+  local SAS=${SSH_AUTH_SOCK}
+
+  _check_ssh_agent &&
+    local SSH_AUTH_SOCK=${HOME}/.ssh/ssh_auth_sock
+    _check_ssh_agent ||
+      ln -sf ${SAS} $HOME/.ssh/ssh_auth_sock
+
+# recall, "||" and "&&" operate on the 0/non-0 property
+# of the called function's return value. If the check succeeds
+# with the alternative socket path, the "ssh-add" call returns
+# 0, so there is nothing more to do. It is only if the alternative
+# path does not have a functional agent that a non-0 value will
+# be returned.  "&&" proceeds if 0 is returned. "||" proceeds
+# if non-0 is returned, thus, "||" is the correct glyph to
+# use since we have additional work to do.
+}
+
+set_ssh_agent

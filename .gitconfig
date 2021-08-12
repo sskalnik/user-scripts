@@ -1,0 +1,35 @@
+[user]
+  name = Shelby Skalnik
+  email = sskalnik@onica.com
+[core]
+  autocrlf = true
+  safecrlf = false
+  editor = vim
+  whitespace = cr-at-eol
+[alias]
+  co = checkout
+  ci = commit
+  st = status
+  br = branch
+  hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short --color --decorate --all
+  type = cat-file -t
+  dump = cat-file -p
+  tree = log --oneline --decorate --all --graph --color
+  pretty = log --pretty=format:'%C(yellow)%h %C(magenta)%ad %C(cyan)%an %C(auto)%d %Creset%s' --date=short --decorate --all --graph --color
+  dog = log --color --pretty=format:"%h%x09%an%x09%ad%x09%s"
+  d = difftool
+[color]
+  diff = auto
+  status = auto
+  branch = auto
+  interactive = auto
+  ui = true
+  pager = true
+[rerere]
+  enabled = 1
+[diff]
+  tool = vimdiff
+[difftool]
+  prompt = false
+[credential]
+  helper = cache --timeout=600
