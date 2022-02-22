@@ -357,6 +357,15 @@ write_files:
       # Also add user-scoped NPM and binaries for AWS and Bitbucket, etc.
       export PATH="$HOME/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
       
+      [[ -f ~/.tmux_ssh ]] && . ~/.tmux_ssh	
+
+      # https://stackoverflow.com/questions/52540121/make-pipenv-create-the-virtualenv-in-the-same-folder	
+      export PIPENV_VENV_IN_PROJECT="enabled"	
+
+      export NVM_DIR="$HOME/.nvm"	
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm	
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+      
       # https://bugs.launchpad.net/ubuntu/+source/libsecret/+bug/1420914
       if test -z "$DBUS_SESSION_BUS_ADDRESS" ; then
         eval `dbus-launch --sh-syntax`
