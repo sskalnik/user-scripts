@@ -11,7 +11,6 @@ users:
     sudo: [ "ALL=(ALL) NOPASSWD:ALL" ]
     shell: /bin/bash
     ssh-authorized-keys: 
-    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCIKOoSSCWzvNAwPUc4TVKdTJsn9tlR2X0kyYt8Nfhn8hMmNJfSwc2+pK/51JavfcyEqTclkay9KuWvHTEROfP2sbm+fAUxapmGwqLKBQ4WXdkLp65jWHJB39MAw59rvCH+Sx5eJ35vXlP+JYtniX0CbeLG1I9Q9h5ObERUGNa2bcJyane5zOGNC3mhzao3CEnIfS7BcrQWUEktBjFAAWEH+Lwz+/KMX1i6rEV0xLDWZtSTkJBt62k6JQWlKJccuO8Ju5c08XQBSShK5jPV0YAugggTT8abVZRs+Aq+hyZ2YqUJnQpWY/Oi0Y6vSrJNN80NmpJKRlmOZyshBPt4dI4X devbox_onica
     - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCJ9UcEAomb1tQqV6Xz+pcRvRxpsM/BTu47aWJOSD3P6gqGe0oHjolq2zGI6z1+hOe1N1YY/9Whd40JghsFDYIcZiP0F84RXH2jlC9LNCbXrxwhPtSEsWx8zLiGCd6egQbFnSnaNct8YHiRAKYoSreSIY/t1jzElsvqe1UKPnpsmVT9R4mhE1ljic87qqaZZPo3o/p8O1X3WMBwnUcGNqKqpEBIm+IUFZcQKh3N94mM/WBH34/m3CdlTcu5/xe1lSetVi9IpDQ6+n5OYRbH4LczubtoxSTvETL89VigS3aqx7sDPsIO7xh+C9bMMrvZee82ASdCMCZXYvJlxdwIJcI9 devbox
 repo_update: true
 repo_upgrade: all
@@ -42,16 +41,6 @@ packages:
   - yum-plugin-kernel-livepatch
 # Build the latest tmux from source
   - libevent-devel
-# Onica SSO is designed for OS X and assumes a GUI; need to install some keyring/wallet packages that assume X11
-# Do not install a full GUI! Just install these packages to get the keyring back-end installed and running
-  - swig
-  - python3-devel
-  - pcsc-lite-devel
-  - dbus-python
-  - dbus-x11
-  - gnome-keyring
-  - libsecret
-  - libjpeg-turbo-devel # Onica-SSO via Pillow https://pillow.readthedocs.io/en/latest/installation.html
 runcmd:
   - systemctl start docker.service
 # Install nvm, node, eslint
@@ -95,9 +84,9 @@ runcmd:
 # This can take a long time to compile the latest Ruby on a small instance!
 # - su sskalnik -c 'rvm install ruby-head'
 # Install pip3 to user directory
-  - su sskalnik -c 'python3.8 -m pip install --upgrade pip --user'
+  - su sskalnik -c 'python3.9 -m pip install --upgrade pip --user'
 # https://www.activestate.com/blog/why-pipenv-venv/
-  - su sskalnik -c 'python3.8 -m pip install --upgrade pipenv --user'
+  - su sskalnik -c 'python3.9 -m pip install --upgrade pipenv --user'
 # Install EPEL
   - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 # Install EPEL package 'sl'
@@ -121,15 +110,6 @@ runcmd:
 # Build the latest tmux from source, and install tmux-plugins, and finally install the tmux-resurrect plugin
   - (cd /tmp && git clone https://github.com/tmux/tmux.git && cd ./tmux && dos2unix ./* && sh autogen.sh && ./configure && make && make install)
   - su sskalnik -c 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm'
-# Set up Onica SSO keyring back-end dbus-python connection to gnome-keyring
-# https://unix.stackexchange.com/questions/473528/how-do-you-enable-the-secret-tool-command-backed-by-gnome-keyring-libsecret-an
-  - mkdir -p ~/.local/share/keyrings
-  - mkdir -p ~/.cache
-  - dbus-launch --sh-syntax
-  - printf '\n' | gnome-keyring-daemon --unlock # Use an actual password here!
-  - /usr/bin/gnome-keyring-daemon --start
-# Install Onica SSO via pip3
-  - su sskalnik -c 'python3.8 -m pip install --upgrade wget https://s3.amazonaws.com/sturdy-sso-client/onica_sso-$(curl https://s3.amazonaws.com/sturdy-sso-client/stable.version)-py2.py3-none-any.whl#egg=onica-sso --user'
 write_files:
   - path: /home/sskalnik/.ssh/config
     owner: sskalnik:sskalnik
@@ -302,8 +282,6 @@ write_files:
       alias mygit='git config user.name "Shelby Skalnik" && git config user.email "sskalnik@sskalnik.com"'
       alias guke='git reset --hard && git clean -df'
       alias gamend='git add -A && git commit --amend'
-      # Onica / Rackspace
-      alias sso-aws='sso-list --json | jq --unbuffered -r '\''.accounts[] | .externalId + "@" + .key + "@" + .name'\'' | sort -k 2 -t '\''@'\'' | column -t -s'\''@'\'''
   - path: /home/sskalnik/.bashrc
     owner: sskalnik:sskalnik
     permissions: 0600
@@ -373,20 +351,11 @@ write_files:
       export HISTCONTROL=ignoredups:erasedups
       export PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
 
-      export PYTHONSTARTUP=~/.pythonrc.py
+      export PYTHONSTARTUP="~/.pythonrc"
 
       # Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
       # Also add user-scoped NPM and binaries for AWS and Bitbucket, etc.
-      export PATH="$HOME/bin:$HOME/.local/bin:/usr/local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
-
-      [[ -f ~/.tmux_ssh ]] && . ~/.tmux_ssh
-
-      # https://stackoverflow.com/questions/52540121/make-pipenv-create-the-virtualenv-in-the-same-folder
-      export PIPENV_VENV_IN_PROJECT="enabled"
-
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+      export PATH="$HOME/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
       
       # https://bugs.launchpad.net/ubuntu/+source/libsecret/+bug/1420914
       if test -z "$DBUS_SESSION_BUS_ADDRESS" ; then
