@@ -31,7 +31,8 @@ packages:
   - curl
   - unzip
   - nc
-# Python latest 3.8.5 install from source tarball
+  - docker
+# Python latest 3.9.1 install from source tarball
   - gcc
   - bzip2-devel
   - libffi-devel
@@ -52,6 +53,13 @@ packages:
   - libsecret
   - libjpeg-turbo-devel # Onica-SSO via Pillow https://pillow.readthedocs.io/en/latest/installation.html
 runcmd:
+  - systemctl start docker.service
+# Install nvm, node, eslint
+  - su sskalnik -c 'wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash'
+  - su sskalnik -c 'nvm install node'
+  - su sskalnik -c 'nvm use node'
+  - su sskalnik -c 'nvm install-latest-npm'
+  - su sskalnik -c 'npm i --save-dev eslint'
 # Lock down SSH: non-standard port 666, no root login, no password login, etc.; SSH2 using key-based auth only!
   - [ sh, -c, echo, '# Added by cloud-init user-data:', '>>', '/etc/ssh/sshd_config' ]
   - grep -q '^Port' /etc/ssh/sshd_config && sed -i 's/^Port.*/Port 666/' /etc/ssh/sshd_config || echo 'Port 666' >> /etc/ssh/sshd_config
@@ -70,9 +78,9 @@ runcmd:
 # Allow 666 through iptables firewall
   - iptables -A IN_public_allow -p tcp -m tcp --dport 666 -m conntrack --ctstate NEW -j ACCEPT
   - iptables -A INPUT -p tcp -m tcp --dport 666 -m conntrack --ctstate NEW -j ACCEPT
-# Python 3.9.6
+# Python 3.9.1
 # Compiling from source can take a long time on a small instance!
-  - (cd /opt && wget https://www.python.org/ftp/python/3.9.6/Python-3.9.6.tgz && tar xzf Python-3.9.6.tgz && cd Python-3.9.6 && ./configure --enable-optimizations && make altinstall && rm -f /opt/Python-3.9.6.tgz)
+  - (cd /opt && wget https://www.python.org/ftp/python/3.9.1/Python-3.9.1.tgz && tar xzf Python-3.9.1.tgz && cd Python-3.9.1 && ./configure --enable-optimizations && make && make altinstall && rm -f /opt/Python-3.9.1.tgz)
 # Install the best vim color scheme
   - wget https://raw.githubusercontent.com/vim-scripts/vibrantink/master/colors/vibrantink.vim -O /usr/share/vim/vimfiles/colors/vibrantink.vim
 # Terraform syntax for vim
@@ -365,11 +373,20 @@ write_files:
       export HISTCONTROL=ignoredups:erasedups
       export PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
 
-      export PYTHONSTARTUP="~/.pythonrc"
+      export PYTHONSTARTUP=~/.pythonrc.py
 
       # Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
       # Also add user-scoped NPM and binaries for AWS and Bitbucket, etc.
-      export PATH="$HOME/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
+      export PATH="$HOME/bin:$HOME/.local/bin:/usr/local/bin:$HOME/.npm-global/bin:$PATH:$HOME/.rvm/bin"
+
+      [[ -f ~/.tmux_ssh ]] && . ~/.tmux_ssh
+
+      # https://stackoverflow.com/questions/52540121/make-pipenv-create-the-virtualenv-in-the-same-folder
+      export PIPENV_VENV_IN_PROJECT="enabled"
+
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
       
       # https://bugs.launchpad.net/ubuntu/+source/libsecret/+bug/1420914
       if test -z "$DBUS_SESSION_BUS_ADDRESS" ; then
