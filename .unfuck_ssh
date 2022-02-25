@@ -2,4 +2,5 @@ killall ssh-agent
 rm ~/ssh_auth_sock
 rm ~/.ssh/ssh_auth_sock
 eval `ssh-agent`
-ssh-add ~/.ssh/onica_bitbucket
+ssh-add ~/.ssh/sskalnik_bitbucket
+ssh-add ~/.ssh/sskalnik_github
