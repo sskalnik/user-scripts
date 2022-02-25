@@ -41,7 +41,7 @@ alias geads='git log --oneline --decorate --all --graph --color --simplify-by-de
 alias branches='git branch -vv'
 alias gainline='git co mainline && git pull && git co -'
 alias mygit='git config user.name "Shelby Skalnik" && git config user.email "sskalnik@sskalnik.com"'
-alias guke='git reset --hard && git clean -df'
+alias gnuke='git reset --hard && git clean -df'
 alias gamend='git add -A && git commit --amend'
 # Onica / Rackspace
 alias sso-aws='sso-list --json | jq --unbuffered -r '\''.accounts[] | .externalId + "@" + .key + "@" + .name'\'' | sort -k 2 -t '\''@'\'' | column -t -s'\''@'\'''
